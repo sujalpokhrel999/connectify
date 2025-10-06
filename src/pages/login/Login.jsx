@@ -27,7 +27,6 @@ const LoginPage = () => {
 
     try {
       await login(loginEmail, loginPassword);
-      toast.success("Login successful!");
       navigate('/chat'); // Navigate after successful login
     } catch (error) {
       console.error(error);

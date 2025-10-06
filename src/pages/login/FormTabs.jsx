@@ -5,9 +5,9 @@ const FormTabs = () => {
 
   return (
     <div className="form-tabs">
-      <Link to="/login">
+      <Link to="/">
         <button
-          className={`tab-btn ${location.pathname === '/login' ? 'active' : ''}`}
+          className={`tab-btn ${location.pathname === '/' ? 'active' : ''}`}
         >
           Login
         </button>

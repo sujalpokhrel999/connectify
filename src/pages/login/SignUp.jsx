@@ -55,7 +55,7 @@ const Signup = () => {
       );
       localStorage.setItem('justSignedUp', true);
       toast.success("User successfully registered");
-      navigate('/login');  // navigate to login page after signup
+      navigate('/');  // navigate to login page after signup
     } catch(error) {
       console.error(error);
       toast.error(error.code.split('/')[1].split('-').join(' '));
