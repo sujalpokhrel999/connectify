@@ -3,7 +3,6 @@ import Sidebar from '../../components/ChatSideBar.jsx';
 import ChatBox from '../../components/ChatBox.jsx';
 import { AppContext } from '../../context/AppContext.jsx';
 import UserProfile from '../../components/UserProfile.jsx';
-import NotificationBanner from '../../components/NotificationBanner.jsx';
 import { saveFcmToken, messaging, db } from '../../config/firebase';
 import { onMessage } from 'firebase/messaging';
 import { onSnapshot, doc } from 'firebase/firestore';
@@ -19,14 +18,13 @@ const Chat = () => {
   useEffect(() => {
     if (chatData && userData) {
       setLoading(false);
-      // Mark initial load complete after a short delay
       setTimeout(() => {
         initialLoadRef.current = false;
       }, 1000);
     }
   }, [chatData, userData]);
   
-  // Real-time message listener for notifications
+  // Real-time message listener for BROWSER notifications
   useEffect(() => {
     if (!userData?.id || !chatData?.length) return;
   
@@ -38,11 +36,9 @@ const Chat = () => {
           const messages = res.data()?.messages || [];
           const lastMessage = messages[messages.length - 1];
   
-          // Skip notification on initial load or first snapshot
           if (isFirstSnapshot || initialLoadRef.current) {
             isFirstSnapshot = false;
             if (lastMessage) {
-              // Store the timestamp to prevent re-notification
               const messageKey = `${chat.messageId}-${lastMessage.timestamp?.seconds || lastMessage.timestamp}-${lastMessage.text}`;
               lastNotifiedRef.current[chat.messageId] = messageKey;
             }
@@ -50,14 +46,12 @@ const Chat = () => {
           }
 
           if (lastMessage && lastMessage.sid !== userData.id) {
-            // Create unique key for this message to prevent duplicates
             const messageKey = `${chat.messageId}-${lastMessage.timestamp?.seconds || lastMessage.timestamp}-${lastMessage.text}`;
             
-            // Only notify if this is a NEW message (different from last notified)
             if (lastNotifiedRef.current[chat.messageId] !== messageKey) {
               lastNotifiedRef.current[chat.messageId] = messageKey;
               
-              // Don't show notification if this chat is currently open
+              // BROWSER NOTIFICATION (System pop-up)
               if (messagesId !== chat.messageId && Notification.permission === "granted") {
                 new Notification(`New message from ${chat.rName}`, {
                   body: lastMessage.text || "New message",
@@ -85,9 +79,8 @@ const Chat = () => {
     if (!userData?.id) return;
 
     const unsubscribe = onMessage(messaging, (payload) => {
-      console.log('Foreground message received:', payload);
+      console.log('Foreground FCM message received:', payload);
       
-      // Don't show notification if it's from the currently open chat
       const messageIdFromPayload = payload.data?.messageId;
       if (messageIdFromPayload === messagesId) {
         return;
@@ -120,7 +113,8 @@ const Chat = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <NotificationBanner />
+      {/* NO NotificationBanner - Only Browser Notifications */}
+      
       <div className="w-[20%]">
         <Sidebar />
       </div>

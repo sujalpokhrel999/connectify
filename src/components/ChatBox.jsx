@@ -178,14 +178,13 @@ const ChatBox = ({ onOpenProfile }) => {
               alt="chat user" 
               className="w-10 h-10 rounded-full object-cover" 
             />
-            {/* Online indicator */}
-            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+
           </div>
           <div>
             <h3 className="font-medium text-gray-800">
               {chatUser.userData?.name || chatUser.rName || "Unknown"}
             </h3>
-            <p className="text-xs text-green-500">Online</p>
+            <p className="text-xs text-start text-green-500">Online</p>
           </div>
         </div>
         <div className="flex items-center space-x-4">

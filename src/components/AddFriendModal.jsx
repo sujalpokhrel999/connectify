@@ -79,7 +79,7 @@ const AddFriendModal = ({ isOpen, onClose }) => {
         rId: userData.id,
         rName: userData.name,
         rAvatar: userData.avatar,
-        updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        updatedAt: Date.now(),
         messageSeen:true
       }) });
   
@@ -89,7 +89,7 @@ const AddFriendModal = ({ isOpen, onClose }) => {
         rId: foundUser.id,
         rName: foundUser.name,
         rAvatar: foundUser.avatar,
-        updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        updatedAt: Date.now(),
         messageSeen:true
       }) });
   

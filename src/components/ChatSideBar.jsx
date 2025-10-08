@@ -71,10 +71,6 @@ const ChatSidebar = () => {
     }
   };
 
-  // Calculate total unread count
-  const totalUnread = (chatData || []).reduce((total, chat) => {
-    return total + (chat.messageSeen === false ? 1 : 0);
-  }, 0);
 
   return (
     <div className="w-full bg-white text-gray-900 flex flex-col h-screen border-r border-gray-200">
@@ -96,11 +92,6 @@ const ChatSidebar = () => {
           className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors relative"
         >
           <Plus className="w-5 h-5" />
-          {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              {totalUnread > 9 ? '9+' : totalUnread}
-            </span>
-          )}
         </button>
         <AddFriendModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
       </div>

@@ -133,6 +133,10 @@ const logout = async() => {
     }
 }
 
+
+
+
+
 export {
     signup, 
     login, 
@@ -142,5 +146,5 @@ export {
     onMessage, 
     saveFcmToken,
     messaging,
-    requestNotificationPermission
+    requestNotificationPermission 
 }

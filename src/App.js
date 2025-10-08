@@ -44,19 +44,36 @@ function App() {
     setupNotifications();
   }, []);
 
+
   useEffect(() => {
+    let intervalId;
+
     const checkUser = async (user) => {
-      if (user) {
+      if (user) { // ✅ prevent duplicate triggers
+
+  
         await loadUserData(user.uid);
-        if (['/', '/signup'].includes(window.location.pathname)) {
-          navigate('/chat');
+
+  
+        if (intervalId) clearInterval(intervalId);
+        intervalId = setInterval(() => {
+
+        }, 120000);
+  
+        if (["/", "/signup"].includes(window.location.pathname)) {
+          navigate("/chat");
         }
-      }
+      } 
     };
-    
+  
     const unsubscribe = onAuthStateChanged(auth, checkUser);
-    return () => unsubscribe();
+    
+    return () => {
+      unsubscribe();
+      clearInterval(intervalId);
+    };
   }, [loadUserData, navigate]);
+  
 
   return (
     <AuthProvider>
