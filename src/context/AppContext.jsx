@@ -2,8 +2,28 @@ import { useState, useEffect, useRef } from 'react'
 import { createContext } from 'react'
 import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+
 
 export const AppContext = createContext();
+
+// Add this BEFORE const AppContextProvider = (props) => {
+    const registerServiceWorker = async () => {
+        if ('serviceWorker' in navigator) {
+          try {
+            const existingRegistration = await navigator.serviceWorker.getRegistration();
+            
+            if (!existingRegistration) {
+              const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+              console.log('✅ Service Worker registered:', registration);
+            } else {
+              console.log('✅ Service Worker already registered');
+            }
+          } catch (error) {
+            console.error('❌ Service Worker registration failed:', error);
+          }
+        }
+      };
 
 const AppContextProvider = (props) => {
     const [currentUser, setCurrentUser] = useState(null);
@@ -94,6 +114,31 @@ const AppContextProvider = (props) => {
             }
         }
     }, [userData]);
+
+    // Add this new useEffect INSIDE AppContextProvider
+useEffect(() => {
+    // Register service worker once on app load
+    registerServiceWorker();
+  
+    // Listen to auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log('✅ User authenticated:', user.uid);
+        await loadUserData(user.uid);
+      } else {
+        console.log('❌ User logged out');
+        // Clear all state on logout
+        setCurrentUser(null);
+        setUserData(null);
+        setChatData([]);
+        setMessages([]);
+        setMessagesId(null);
+        setChatUser(null);
+      }
+    });
+  
+    return () => unsubscribe();
+  }, []); // Empty dependency array - only run once
 
     const value = {
         userData, setUserData,

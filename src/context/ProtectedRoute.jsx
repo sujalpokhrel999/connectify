@@ -1,20 +1,12 @@
-import { onAuthStateChanged } from 'firebase/auth';
-import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { auth } from '../config/firebase';
+import { useContext } from 'react';
+import { AppContext } from './AppContext.jsx';
 
 const ProtectedRoute = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(null);
+  const { currentUser, loading } = useContext(AppContext);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsLoggedIn(!!user);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Show a spinner while checking auth
-  if (isLoggedIn === null) {
+  // Show spinner while checking auth
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <svg
@@ -42,11 +34,9 @@ const ProtectedRoute = ({ children }) => {
   }
 
   // Redirect if not logged in
-  if (!isLoggedIn) {
+  if (!currentUser) {
     return <Navigate to="/" replace />;
   }
 
   return children;
 };
-
-export default ProtectedRoute;

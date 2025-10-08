@@ -1,7 +1,6 @@
 import { useState, useContext } from "react";
 import { db } from "../config/firebase";
 import { collection, query, where, getDoc,getDocs,doc,arrayUnion,updateDoc,setDoc,serverTimestamp} from "firebase/firestore";
-// import { useAuth } from "../config/authContext"; // custom hook for logged in user
 import {AppContext} from '../context/AppContext.jsx'
 import {toast} from "react-toastify"
 

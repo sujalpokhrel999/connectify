@@ -11,68 +11,15 @@ const Chat = () => {
   const { chatData, userData, messagesId } = useContext(AppContext);
   const [loading, setLoading] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
-  const chatListenersRef = useRef({});
-  const lastNotifiedRef = useRef({});
-  const initialLoadRef = useRef(true);
+
 
   useEffect(() => {
     if (chatData && userData) {
       setLoading(false);
-      setTimeout(() => {
-        initialLoadRef.current = false;
-      }, 1000);
     }
   }, [chatData, userData]);
   
-  // Real-time message listener for BROWSER notifications
-  useEffect(() => {
-    if (!userData?.id || !chatData?.length) return;
-  
-    chatData.forEach((chat) => {
-      if (!chatListenersRef.current[chat.messageId]) {
-        let isFirstSnapshot = true;
-        
-        const unsubscribe = onSnapshot(doc(db, 'messages', chat.messageId), (res) => {
-          const messages = res.data()?.messages || [];
-          const lastMessage = messages[messages.length - 1];
-  
-          if (isFirstSnapshot || initialLoadRef.current) {
-            isFirstSnapshot = false;
-            if (lastMessage) {
-              const messageKey = `${chat.messageId}-${lastMessage.timestamp?.seconds || lastMessage.timestamp}-${lastMessage.text}`;
-              lastNotifiedRef.current[chat.messageId] = messageKey;
-            }
-            return;
-          }
 
-          if (lastMessage && lastMessage.sid !== userData.id) {
-            const messageKey = `${chat.messageId}-${lastMessage.timestamp?.seconds || lastMessage.timestamp}-${lastMessage.text}`;
-            
-            if (lastNotifiedRef.current[chat.messageId] !== messageKey) {
-              lastNotifiedRef.current[chat.messageId] = messageKey;
-              
-              // BROWSER NOTIFICATION (System pop-up)
-              if (messagesId !== chat.messageId && Notification.permission === "granted") {
-                new Notification(`New message from ${chat.rName}`, {
-                  body: lastMessage.text || "New message",
-                  icon: chat.rAvatar,
-                  tag: messageKey,
-                  requireInteraction: false
-                });
-              }
-            }
-          }
-        });
-  
-        chatListenersRef.current[chat.messageId] = unsubscribe;
-      }
-    });
-  
-    return () => {
-      Object.values(chatListenersRef.current).forEach((unsub) => unsub());
-      chatListenersRef.current = {};
-    };
-  }, [chatData, userData, messagesId]);
   
   // Handle foreground FCM messages
   useEffect(() => {
