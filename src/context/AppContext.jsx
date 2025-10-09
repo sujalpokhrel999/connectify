@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { createContext } from 'react'
-import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot} from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
-
+import {useNavigate} from 'react-router-dom'
+import { setupPresence, cleanupPresence } from '../config/firebase'
 
 export const AppContext = createContext();
+
+
 
 // Add this BEFORE const AppContextProvider = (props) => {
     const registerServiceWorker = async () => {
@@ -26,6 +29,7 @@ export const AppContext = createContext();
       };
 
 const AppContextProvider = (props) => {
+    const navigate = useNavigate();
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [userData, setUserData] = useState(null);
@@ -33,6 +37,9 @@ const AppContextProvider = (props) => {
     const [messagesId, setMessagesId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatUser, setChatUser] = useState(null);
+
+    const [presenceInterval, setPresenceInterval] = useState(null);
+
     
     // 🔥 ADD: Cache to prevent re-reading user documents
     const userDataCache = useRef({});
@@ -125,8 +132,18 @@ useEffect(() => {
       if (user) {
         console.log('✅ User authenticated:', user.uid);
         await loadUserData(user.uid);
+        navigate('/chat')
+          // Setup presence tracking
+      const interval = await setupPresence(user.uid);
+      setPresenceInterval(interval);
       } else {
         console.log('❌ User logged out');
+
+         // Cleanup presence
+      if (presenceInterval) {
+        await cleanupPresence(null, presenceInterval);
+        setPresenceInterval(null);
+      }
         // Clear all state on logout
         setCurrentUser(null);
         setUserData(null);
@@ -134,11 +151,17 @@ useEffect(() => {
         setMessages([]);
         setMessagesId(null);
         setChatUser(null);
+        navigate('/')
       }
     });
   
-    return () => unsubscribe();
-  }, []); // Empty dependency array - only run once
+    return () => {
+        unsubscribe();
+        if (presenceInterval) {
+          clearInterval(presenceInterval);
+        }
+      };
+    }, []);// Empty dependency array - only run once
 
     const value = {
         userData, setUserData,
@@ -148,7 +171,8 @@ useEffect(() => {
         loading,
         messages, setMessages,
         messagesId, setMessagesId,
-        chatUser, setChatUser
+        chatUser, setChatUser,
+        presenceInterval, setPresenceInterval 
     }
 
     return (

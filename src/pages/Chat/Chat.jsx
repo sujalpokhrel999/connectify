@@ -1,16 +1,18 @@
-import React, { useState, useContext, useEffect, useRef } from 'react';
+import React, { useState, useContext, useEffect, useRef} from 'react';
 import Sidebar from '../../components/ChatSideBar.jsx';
 import ChatBox from '../../components/ChatBox.jsx';
 import { AppContext } from '../../context/AppContext.jsx';
 import UserProfile from '../../components/UserProfile.jsx';
-import { saveFcmToken, messaging, db } from '../../config/firebase';
+import { saveFcmToken, messaging,db} from '../../config/firebase';
 import { onMessage } from 'firebase/messaging';
-import { onSnapshot, doc } from 'firebase/firestore';
+import { onSnapshot, doc} from 'firebase/firestore'
+
 
 const Chat = () => {
   const { chatData, userData, messagesId } = useContext(AppContext);
   const [loading, setLoading] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
+  const lastNotifiedRef = useRef({});
 
 
   useEffect(() => {
@@ -46,6 +48,48 @@ const Chat = () => {
 
     return () => unsubscribe();
   }, [userData, messagesId]);
+
+  // Global notification listener for all chats (except active one)
+useEffect(() => {
+  if (!userData?.id) return;
+
+  const unsubscribe = onSnapshot(doc(db, 'chats', userData.id), (snapshot) => {
+    const chatsData = snapshot.data()?.chatsData || [];
+    
+    // Check each chat for new unread messages
+    chatsData.forEach((chat) => {
+      // Skip if this is the currently active chat (ChatBox handles this one)
+      if (chat.messageId === messagesId) return;
+      
+      // Only show notification if message is unread
+      if (chat.messageSeen === false && chat.lastMessage) {
+        // Create unique key to prevent duplicate notifications
+        const notificationKey = `${chat.messageId}-${chat.updatedAt}`;
+        
+        // Check if we already showed notification for this message
+        if (lastNotifiedRef.current[chat.messageId] !== notificationKey) {
+          lastNotifiedRef.current[chat.messageId] = notificationKey;
+          
+          // Show browser notification
+          if (Notification.permission === "granted") {
+            new Notification(`New message from ${chat.rName}`, {
+              body: chat.lastMessage || "New message",
+              icon: chat.rAvatar || '/favicon.ico',
+              tag: notificationKey,
+              requireInteraction: false
+            });
+          }
+        }
+      } else if (chat.messageSeen === true) {
+        // Reset notification tracking when message is read
+        // This allows future messages from this chat to trigger notifications
+        delete lastNotifiedRef.current[chat.messageId];
+      }
+    });
+  });
+
+  return () => unsubscribe();
+}, [userData?.id, messagesId]);
 
   if (loading) {
     return (

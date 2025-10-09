@@ -7,12 +7,12 @@ import AddFriendModal from './AddFriendModal.jsx';
 import { AppContext } from '../context/AppContext.jsx';
 
 const ChatSidebar = () => {
-  const { chatData, userData, setCurrentUser, chatUser, setChatUser, messagesId, setMessagesId } = useContext(AppContext);
+  const { chatData, userData, setCurrentUser, chatUser, setChatUser, messagesId, setMessagesId,  presenceInterval } = useContext(AppContext);
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await logout(presenceInterval);
       setCurrentUser(null);
       navigate('/');
     } catch (error) {
@@ -119,8 +119,10 @@ const ChatSidebar = () => {
                       src={chat.rAvatar || "/favicon.ico"} 
                       className="w-12 h-12 rounded-full border object-cover" 
                     />
-                    {/* Online status indicator */}
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                {/* Online status indicator */}
+<div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+  chat.userData?.status === 'online' ? 'bg-green-500' : 'bg-gray-400'
+}`}></div>
                   </div>
                   
                   <div className="flex-1 min-w-0">

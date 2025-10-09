@@ -63,14 +63,39 @@ export default function UserProfilePanel({onClose}) {
     }
     }
 
+    const formatLastSeen = (timestamp) => {
+      if (!timestamp) return 'Offline';
+      
+      const now = Date.now();
+      const diff = now - timestamp;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+      
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return `${minutes}m ago`;
+      if (hours < 24) return `${hours}h ago`;
+      if (days < 7) return `${days}d ago`;
+      
+      return new Date(timestamp).toLocaleDateString();
+    };
 
   return (
     <div className="w-80 h-screen bg-white border-l border-gray-200 flex flex-col">
       {/* Header with Avatar and Name */}
       <div className="p-6 flex flex-col items-center border-b border-gray-200">
-        <img src={chatUser.userData?.avatar}  className="w-20 h-20 rounded-full mb-3"/>
+        <img src={chatUser.userData?.avatar} alt="userprofule"  className="w-20 h-20 rounded-full mb-3"/>
         <h2 className="text-lg font-semibold text-gray-900">{chatUser.userData?.name} </h2>
-        <p className="text-sm text-gray-500">Active now</p>
+        <p className={`text-sm ${
+  chatUser.userData?.status === 'online' ? 'text-green-500' : 'text-gray-500'
+}`}>
+  {chatUser.userData?.status === 'online' 
+    ? 'Active now' 
+    : chatUser.userData?.lastSeen 
+      ? `Last seen ${formatLastSeen(chatUser.userData.lastSeen)}`
+      : 'Offline'
+  }
+</p>
         <button onClick={onClose}> close </button>
       </div>
 

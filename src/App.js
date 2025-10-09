@@ -1,6 +1,5 @@
 import './App.css';
-import React, { useEffect, useContext } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/login/Login.jsx';
 import SignUp from './pages/login/SignUp.jsx';
 import Chat from './pages/Chat/Chat.jsx';
@@ -8,15 +7,11 @@ import Profile from './pages/profile/Profile.jsx';
 import { ToastContainer} from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import { AppContext } from './context/AppContext.jsx';
 import ProtectedRoute from './context/ProtectedRoute.jsx';
 import EditProfile from './pages/profile/EditProfile.jsx';
 
 
 function App() {
-  const navigate = useNavigate();
-
-
 
 
   return (

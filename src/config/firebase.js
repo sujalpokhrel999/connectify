@@ -1,17 +1,18 @@
 import { initializeApp } from "firebase/app";
 import {getAuth,signOut,createUserWithEmailAndPassword, signInWithEmailAndPassword} from 'firebase/auth';
-import {getFirestore, setDoc, doc,updateDoc} from 'firebase/firestore';
+import {getFirestore, setDoc, doc,updateDoc,getDoc} from 'firebase/firestore';
 import {toast} from 'react-toastify'
 import {getMessaging, getToken, onMessage} from 'firebase/messaging'
+import { getDatabase, ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBCyvx3kzwCBeOSe1MCm6M4BFL3T6ZOTP0",
-    authDomain: "connectify-9803.firebaseapp.com",
-  projectId: "connectify-9803",
-  storageBucket: "connectify-9803.firebasestorage.app",
-  messagingSenderId: "291325959035",
-  appId: "1:291325959035:web:d1ebf3fc49e76d4fc93bde",
-  measurementId: "G-RZQWXL63PX"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
@@ -20,6 +21,12 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const messaging = getMessaging(app);
+
+const rtdb = getDatabase(
+  app,
+  process.env.REACT_APP_FIREBASE_DATABASE_URL
+); // Realtime Database (Singapore region)
+
 
 // Request notification permission
 const requestNotificationPermission = async () => {
@@ -45,7 +52,7 @@ const saveFcmToken = async (uid) => {
   
       if (permission) {
         const token = await getToken(messaging, {
-          vapidKey: "BFR4GjxKJNGnp1bOEFPOA65drvCbakGA_KS3hnlZNlJBviDIZ503cY-3--qM69eO4QVyadXTj9OLqK-UIHgPhLg"
+          vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY
         });
   
         if (token) {
@@ -81,7 +88,8 @@ const signup = async (firstName,lastName,email,password,confirmPassword,terms) =
             name:`${firstName} ${lastName}`,
             lastSeen: Date.now(),
             avatar: "https://i.pravatar.cc/150?u=" + user.uid,
-            fcmToken: null
+            fcmToken: null,
+            status: 'online'
         });
         
         await setDoc(doc(db,"chats",user.uid),{
@@ -90,6 +98,9 @@ const signup = async (firstName,lastName,email,password,confirmPassword,terms) =
         
         // Request notification permission after signup
         await saveFcmToken(user.uid);
+
+         // Setup presence tracking
+         await setupPresence(user.uid);
         
         toast.success("Account created successfully!");
         return user;
@@ -106,6 +117,9 @@ const login = async (email,password) =>{
         
         // Save/update FCM token on login
         await saveFcmToken(res.user.uid);
+
+         // Setup presence tracking
+         await setupPresence(res.user.uid);
         
         toast.success("Logged in successfully!");
         return res.user;
@@ -116,25 +130,124 @@ const login = async (email,password) =>{
     }
 }
 
-const logout = async() => {
-    try{
-        // Clear FCM token on logout
-        const user = auth.currentUser;
-        if (user) {
-            await updateDoc(doc(db, "users", user.uid), { fcmToken: null });
-        }
-        
-        await signOut(auth);
-        toast.success("Logged out successfully!");
-    }catch(error){
-        console.error("Logout error:", error);
-        toast.error(error.code.split('/')[1].split('-').join(' '));
-        throw error;
-    }
+const logout = async(presenceInterval) => {
+  try{
+      const user = auth.currentUser;
+      if (user) {
+          // Clear FCM token
+          await updateDoc(doc(db, "users", user.uid), { fcmToken: null });
+          
+          // Cleanup presence
+          await cleanupPresence(user.uid, presenceInterval);
+      }
+      
+      await signOut(auth);
+      toast.success("Logged out successfully!");
+  }catch(error){
+      console.error("Logout error:", error);
+      toast.error(error.code.split('/')[1].split('-').join(' '));
+      throw error;
+  }
 }
 
 
+// Setup user presence tracking
+const setupPresence = async (uid) => {
+  if (!uid) return;
 
+  try {
+    const userStatusRef = ref(rtdb, `/status/${uid}`);
+    const userFirestoreRef = doc(db, 'users', uid);
+
+    // Online status object
+    const isOnlineData = {
+      state: 'online',
+      lastChanged: rtdbServerTimestamp(),
+    };
+
+    // Offline status object
+    const isOfflineData = {
+      state: 'offline',
+      lastChanged: rtdbServerTimestamp(),
+    };
+
+    // Create a reference to the special '.info/connected' path in Realtime Database
+    // This path tells us when the client connects/disconnects
+    const connectedRef = ref(rtdb, '.info/connected');
+
+    onValue(connectedRef, (snapshot) => {
+      if (snapshot.val() === true) {
+        console.log('✅ User connected');
+    
+        // Set user as online in Realtime Database
+        set(userStatusRef, isOnlineData);
+    
+        // Queue offline update for Realtime Database when disconnecting
+        onDisconnect(userStatusRef).set(isOfflineData);
+    
+        // Update Firestore immediately
+        updateDoc(userFirestoreRef, {
+          status: 'online',
+          lastSeen: Date.now()
+        }).catch(err => console.error('Firestore update error:', err));
+    
+      } else {
+        console.log('❌ User disconnected');
+    
+        // Update Firestore directly — already offline
+        updateDoc(userFirestoreRef, {
+          status: 'offline',
+          lastSeen: Date.now()
+        }).catch(err => console.error('Firestore update error:', err));
+      }
+    });
+    
+
+    // Update presence every 5 minutes while user is active
+    const presenceInterval = setInterval(async () => {
+      try {
+        const userDoc = await getDoc(userFirestoreRef);
+        if (userDoc.exists() && userDoc.data().status === 'online') {
+          await updateDoc(userFirestoreRef, {
+            lastSeen: Date.now()
+          });
+          console.log('🔄 Presence heartbeat updated');
+        }
+      } catch (error) {
+        console.error('Presence update error:', error);
+      }
+    }, 300000); // 5 minutes
+
+    // Store interval ID so we can clear it on logout
+    return presenceInterval;
+  } catch (error) {
+    console.error('Error setting up presence:', error);
+    return null;
+  }
+};
+
+// Clean up presence on logout
+const cleanupPresence = async (uid, presenceInterval) => {
+  if (!uid) return;
+
+  try {
+    // Clear the heartbeat interval
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+    }
+
+    // Set user as offline
+    const userFirestoreRef = doc(db, 'users', uid);
+    await updateDoc(userFirestoreRef, {
+      status: 'offline',
+      lastSeen: Date.now()
+    });
+
+    console.log('✅ Presence cleaned up');
+  } catch (error) {
+    console.error('Error cleaning up presence:', error);
+  }
+};
 
 
 export {
@@ -146,5 +259,8 @@ export {
     onMessage, 
     saveFcmToken,
     messaging,
-    requestNotificationPermission 
+    requestNotificationPermission,
+    setupPresence, 
+    cleanupPresence,
+    rtdb 
 }

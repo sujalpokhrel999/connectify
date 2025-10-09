@@ -11,17 +11,18 @@ const ChatBox = ({ onOpenProfile }) => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Listen for messages in the active chat
+
   useEffect(() => {
     if (!messagesId) return;
-
+  
     const unSub = onSnapshot(doc(db, 'messages', messagesId), (res) => {
       const newMessages = res.data()?.messages || [];
       setMessages(newMessages);
     });
-
+  
     return () => unSub();
   }, [messagesId, setMessages]);
+
 
   // Mark messages as read when chat is opened
   useEffect(() => {
@@ -49,6 +50,35 @@ const ChatBox = ({ onOpenProfile }) => {
     markAsRead();
   }, [messagesId, userData?.id]);
 
+  //chats that are opene mark read 
+  useEffect(() => {
+    const markNewMessagesAsRead = async () => {
+      if (!messagesId || !userData?.id) return;
+  
+      try {
+        const userChatsRef = doc(db, 'chats', userData.id);
+        const userChatsSnapshot = await getDoc(userChatsRef);
+  
+        if (!userChatsSnapshot.exists()) return;
+  
+        const userChatData = userChatsSnapshot.data();
+        const chatIndex = userChatData.chatsData.findIndex(c => c.messageId === messagesId);
+  
+        if (chatIndex !== -1 && userChatData.chatsData[chatIndex].messageSeen === false) {
+          userChatData.chatsData[chatIndex].messageSeen = true;
+          await updateDoc(userChatsRef, { chatsData: userChatData.chatsData });
+        }
+      } catch (err) {
+        console.error("Error marking new messages as read:", err);
+      }
+    };
+  
+    if (messages.length > 0) {
+      markNewMessagesAsRead();
+    }
+  }, [messages, messagesId, userData?.id]);
+
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -135,6 +165,23 @@ const ChatBox = ({ onOpenProfile }) => {
     });
   };
 
+  const formatLastSeen = (timestamp) => {
+    if (!timestamp) return 'Offline';
+    
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    
+    return new Date(timestamp).toLocaleDateString();
+  };
+
   const MessageBubble = ({ msg }) => {
     const isMe = msg.sid === userData.id;
     return (
@@ -172,20 +219,32 @@ const ChatBox = ({ onOpenProfile }) => {
       {/* Chat Header */}
       <div className="bg-white border-b border-blue-100 pt-3 pb-[17.6px] px-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center space-x-3">
-          <div className="relative">
-            <img 
-              src={chatUser.userData?.avatar || chatUser.rAvatar || "/favicon.ico"} 
-              alt="chat user" 
-              className="w-10 h-10 rounded-full object-cover" 
-            />
-
-          </div>
+        <div className="relative">
+  <img 
+    src={chatUser.userData?.avatar || chatUser.rAvatar || "/favicon.ico"} 
+    alt="chat user" 
+    className="w-10 h-10 rounded-full object-cover" 
+  />
+  {/* Online status indicator */}
+  <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+    chatUser.userData?.status === 'online' ? 'bg-green-500' : 'bg-gray-400'
+  }`}></div>
+</div>
           <div>
-            <h3 className="font-medium text-gray-800">
-              {chatUser.userData?.name || chatUser.rName || "Unknown"}
-            </h3>
-            <p className="text-xs text-start text-green-500">Online</p>
-          </div>
+  <h3 className="font-medium text-gray-800">
+    {chatUser.userData?.name || chatUser.rName || "Unknown"}
+  </h3>
+  <p className={`text-xs text-start ${
+    chatUser.userData?.status === 'online' ? 'text-green-500' : 'text-gray-500'
+  }`}>
+    {chatUser.userData?.status === 'online' 
+      ? 'Online' 
+      : chatUser.userData?.lastSeen 
+        ? `Last seen ${formatLastSeen(chatUser.userData.lastSeen)}`
+        : 'Offline'
+    }
+  </p>
+</div>
         </div>
         <div className="flex items-center space-x-4">
           <button className="p-2 hover:bg-blue-50 rounded-full transition-colors text-blue-600">
