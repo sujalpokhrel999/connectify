@@ -216,7 +216,7 @@ const setupPresence = async (uid) => {
       } catch (error) {
         console.error('Presence update error:', error);
       }
-    }, 300000); // 5 minutes
+    }, 120000); // 2 minutes
 
     // Store interval ID so we can clear it on logout
     return presenceInterval;

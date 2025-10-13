@@ -26,11 +26,28 @@ const ChatSidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   // Filter chats based on rName or lastMessage
-  const filteredChats = (chatData || []).filter(
-    (chat) =>
-      chat.rName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (chat.lastMessage || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter chats based on search term
+const filteredChats = (chatData || [])
+.map((chat) => {
+  // Get messages for this chat (from chat object or Firestore messages)
+  const messagesArray = chat.messages || []; // each chat should have its own messages array
+
+  // Count messages that are sent by the other user and not yet seen
+  const unseenCount = messagesArray.filter(
+    (msg) => msg.sid !== userData.id && !msg.seen
+  ).length;
+
+  return {
+    ...chat,
+    unseenCount
+  };
+})
+.filter(
+  (chat) =>
+    chat.rName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (chat.lastMessage || "").toLowerCase().includes(searchTerm.toLowerCase())
+);
+
 
   const setChat = async (chat) => {
     setMessagesId(chat.messageId);
@@ -143,11 +160,15 @@ const ChatSidebar = () => {
                         {chat.lastMessage || "No messages yet"}
                       </p>
                       {/* Unread badge */}
-                      {chat.messageSeen === false && (
-                        <span className="ml-2 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                          1
-                        </span>
-                      )}
+                      {chat.messageSeen === false && chat.unreadCount > 0 && (
+  <span className={`ml-2 bg-blue-500 text-white text-xs font-semibold rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+    chat.unreadCount > 9 
+      ? 'w-6 h-6' 
+      : 'w-5 h-5'
+  }`}>
+    {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+  </span>
+)}
                     </div>
                   </div>
                 </div>

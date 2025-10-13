@@ -1,7 +1,7 @@
 import React, { useState,useContext } from 'react';
 import { ChevronDown, ChevronUp, File, Image, FileText } from 'lucide-react';
 import { AppContext } from '../context/AppContext.jsx'
-import { deleteDoc, doc, updateDoc, getDoc, arrayRemove } from 'firebase/firestore'
+import { deleteDoc, doc, updateDoc, getDoc, arrayRemove, arrayUnion } from 'firebase/firestore'
 import {db} from '.././config/firebase'
 import {toast} from 'react-toastify'
 export default function UserProfilePanel({onClose}) {
@@ -57,11 +57,54 @@ export default function UserProfilePanel({onClose}) {
      setChatUser(null);
     console.log("Friend removed successfully!");
     toast.success("Friend removed successfully!");
+    onClose();
 
     }catch(error){
         toast.error('error')
     }
     }
+
+    const handleDeleteChat = async() => {
+      try {
+        const chatRefMe = doc(db, 'chats', userData.id);
+        
+        const mySnap = await getDoc(chatRefMe);
+        const myChats = mySnap.data()?.chatsData || [];
+        const chatObjIndex = myChats.findIndex(c => c.rId === chatUser.userData.id);
+        
+        if (chatObjIndex === -1) {
+          toast.error("Chat not found");
+          return;
+        }
+    
+        // Get the chat object to remove
+        const chatToUpdate = myChats[chatObjIndex];
+    
+        // Remove the old chat entry
+        await updateDoc(chatRefMe, {
+          chatsData: arrayRemove(chatToUpdate)
+        });
+    
+        // Add it back with cleared data
+        await updateDoc(chatRefMe, {
+          chatsData: arrayUnion({
+            ...chatToUpdate,
+            lastMessage: "",
+            messageSeen: true,
+            unreadCount: 0,
+            updatedAt: Date.now()
+          })
+        });
+    
+        setChatUser(null);
+        toast.success("Chat cleared successfully!");
+        onClose();
+    
+      } catch (error) {
+        console.error('Delete chat error:', error);
+        toast.error('Failed to delete chat');
+      }
+    };
 
     const formatLastSeen = (timestamp) => {
       if (!timestamp) return 'Offline';
@@ -136,15 +179,22 @@ export default function UserProfilePanel({onClose}) {
         </div>
       </div>
 
-      {/* Unfriend Button */}
-      <div className="p-6 border-t border-gray-200">
-        <button
-          onClick={()=>handleUnfriend(chatUser.userData.id)}
-          className="w-full py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
-        >
-          Unfriend
-        </button>
-      </div>
+      {/* Action Buttons */}
+<div className="p-6 border-t border-gray-200 space-y-3">
+  <button
+    onClick={() => handleDeleteChat()}
+    className="w-full py-2.5 px-4 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+  >
+    Delete Chat
+  </button>
+  
+  <button
+    onClick={() => handleUnfriend(chatUser.userData.id)}
+    className="w-full py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-medium rounded-colors"
+  >
+    Unfriend
+  </button>
+</div>
     </div>
   );
 }

@@ -79,7 +79,8 @@ const AddFriendModal = ({ isOpen, onClose }) => {
         rName: userData.name,
         rAvatar: userData.avatar,
         updatedAt: Date.now(),
-        messageSeen:true
+        messageSeen:true,
+        unreadCount: 0 
       }) });
   
       await updateDoc(doc(chatRef, userData.id), { chatsData: arrayUnion({
@@ -89,7 +90,8 @@ const AddFriendModal = ({ isOpen, onClose }) => {
         rName: foundUser.name,
         rAvatar: foundUser.avatar,
         updatedAt: Date.now(),
-        messageSeen:true
+        messageSeen:true,
+        unreadCount: 0 // ADD THIS
       }) });
   
       // Update local state for sidebar

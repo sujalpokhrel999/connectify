@@ -23,6 +23,39 @@ const ChatBox = ({ onOpenProfile }) => {
     return () => unSub();
   }, [messagesId, setMessages]);
 
+  // Update message status to "sent" after being added to Firestore
+useEffect(() => {
+  if (!messagesId || !messages.length) return;
+
+  const updateMessageStatus = async () => {
+    try {
+      const messagesRef = doc(db, 'messages', messagesId);
+      const messagesSnapshot = await getDoc(messagesRef);
+      
+      if (!messagesSnapshot.exists()) return;
+
+      const allMessages = messagesSnapshot.data()?.messages || [];
+      const hasUnsent = allMessages.some(msg => msg.status === 'sending');
+
+      if (hasUnsent) {
+        // Update all "sending" messages to "sent"
+        const updatedMessages = allMessages.map(msg => 
+          msg.status === 'sending' 
+            ? { ...msg, status: 'sent' }
+            : msg
+        );
+
+        await updateDoc(messagesRef, { messages: updatedMessages });
+      }
+    } catch (error) {
+      console.error('Error updating message status:', error);
+    }
+  };
+
+  // Debounce to avoid too many updates
+  const timer = setTimeout(updateMessageStatus, 500);
+  return () => clearTimeout(timer);
+}, [messages, messagesId]);
 
   // Mark messages as read when chat is opened
   useEffect(() => {
@@ -40,6 +73,7 @@ const ChatBox = ({ onOpenProfile }) => {
 
         if (chatIndex !== -1 && userChatData.chatsData[chatIndex].messageSeen === false) {
           userChatData.chatsData[chatIndex].messageSeen = true;
+          userChatData.chatsData[chatIndex].unreadCount = 0;
           await updateDoc(userChatsRef, { chatsData: userChatData.chatsData });
         }
       } catch (error) {
@@ -51,37 +85,50 @@ const ChatBox = ({ onOpenProfile }) => {
   }, [messagesId, userData?.id]);
 
   //chats that are opene mark read 
-  useEffect(() => {
-    const markNewMessagesAsRead = async () => {
-      if (!messagesId || !userData?.id) return;
-  
-      try {
-        const userChatsRef = doc(db, 'chats', userData.id);
-        const userChatsSnapshot = await getDoc(userChatsRef);
-  
-        if (!userChatsSnapshot.exists()) return;
-  
-        const userChatData = userChatsSnapshot.data();
-        const chatIndex = userChatData.chatsData.findIndex(c => c.messageId === messagesId);
-  
-        if (chatIndex !== -1 && userChatData.chatsData[chatIndex].messageSeen === false) {
-          userChatData.chatsData[chatIndex].messageSeen = true;
-          await updateDoc(userChatsRef, { chatsData: userChatData.chatsData });
-        }
-      } catch (err) {
-        console.error("Error marking new messages as read:", err);
-      }
-    };
-  
-    if (messages.length > 0) {
-      markNewMessagesAsRead();
-    }
-  }, [messages, messagesId, userData?.id]);
-
-  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Mark messages as seen by recipient
+useEffect(() => {
+  const markMessagesSeen = async () => {
+    if (!messagesId || !userData?.id) return;
+
+    try {
+      const messagesRef = doc(db, 'messages', messagesId);
+      const messagesSnapshot = await getDoc(messagesRef);
+
+      if (!messagesSnapshot.exists()) return;
+
+      const allMessages = messagesSnapshot.data()?.messages || [];
+      let hasUnseen = false;
+
+      const updatedMessages = allMessages.map(msg => {
+        // If message is from the other person and not yet seen
+        if (msg.sid !== userData.id && !msg.seen) {
+          hasUnseen = true;
+          return {
+            ...msg,
+            seen: true,
+            seenAt: Timestamp.now()
+          };
+        }
+        return msg;
+      });
+
+      // Only update if there were unseen messages
+      if (hasUnseen) {
+        await updateDoc(messagesRef, { messages: updatedMessages });
+        console.log('✅ Messages marked as seen');
+      }
+    } catch (error) {
+      console.error('Error marking messages as seen:', error);
+    }
+  };
+
+  markMessagesSeen();
+}, [messagesId, userData?.id, messages.length]);
+
 
   useEffect(() => {
     scrollToBottom();
@@ -96,7 +143,10 @@ const ChatBox = ({ onOpenProfile }) => {
         messages: arrayUnion({
           sid: userData.id,
           text: message,
-          timestamp: Timestamp.now()
+          timestamp: Timestamp.now(),
+          status:'sending',
+          seen:false,
+          seenAt:null
         }),
       });
 
@@ -118,11 +168,15 @@ const ChatBox = ({ onOpenProfile }) => {
           userChatData.chatsData[chatIndex].updatedAt = Date.now();
 
           // Mark as unread for receiver, read for sender
-          if (userChatData.chatsData[chatIndex].rId === userData.id) {
-            userChatData.chatsData[chatIndex].messageSeen = false;
-          } else {
-            userChatData.chatsData[chatIndex].messageSeen = true;
-          }
+        
+if (userChatData.chatsData[chatIndex].rId === userData.id) {
+  const currentUnread = userChatData.chatsData[chatIndex].unreadCount || 0;
+  userChatData.chatsData[chatIndex].unreadCount = currentUnread + 1;
+  userChatData.chatsData[chatIndex].messageSeen = false;
+} else {
+  userChatData.chatsData[chatIndex].unreadCount = 0;
+  userChatData.chatsData[chatIndex].messageSeen = true;
+}
 
           await updateDoc(userChatsRef, { chatsData: userChatData.chatsData });
         })
@@ -184,6 +238,50 @@ const ChatBox = ({ onOpenProfile }) => {
 
   const MessageBubble = ({ msg }) => {
     const isMe = msg.sid === userData.id;
+    
+    // Determine status icon and text
+    const getStatusIndicator = () => {
+      if (!isMe) return null; // Only show for sent messages
+      
+      if (msg.status === 'sending') {
+        return (
+          <div className="flex items-center gap-1">
+            <div className="flex gap-0.5">
+              <span className="w-1 h-1 bg-blue-100 rounded-full animate-pulse"></span>
+              <span className="w-1 h-1 bg-blue-100 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></span>
+              <span className="w-1 h-1 bg-blue-100 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+            </div>
+            <span className="text-xs text-blue-100">Sending</span>
+          </div>
+        );
+      }
+      
+      if (msg.seen) {
+        return (
+          <div className="flex items-center gap-1">
+            <svg className="w-4 h-4 text-blue-100" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+            </svg>
+            <svg className="w-4 h-4 text-blue-100 -ml-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+            </svg>
+            <span className="text-xs text-blue-100"></span>
+          </div>
+        );
+      }
+      
+      // Default: sent but not seen (single checkmark)
+      return (
+        <svg 
+          className="w-4 h-4 text-blue-100"
+          fill="currentColor" 
+          viewBox="0 0 20 20"
+        >
+          <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+        </svg>
+      );
+    };
+  
     return (
       <div className={`flex mb-4 ${isMe ? 'justify-end' : 'justify-start'}`}>
         <div
@@ -196,18 +294,9 @@ const ChatBox = ({ onOpenProfile }) => {
           <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
           <div className="flex items-center justify-end mt-1 gap-1">
             <span className={`text-xs ${isMe ? 'text-blue-100' : 'text-gray-500'}`}>
-              {formatTimestamp(msg.timestamp)}
+              {msg.seenAt ? formatTimestamp(msg.seenAt) : formatTimestamp(msg.timestamp)}
             </span>
-            {/* Read receipt for sent messages */}
-            {isMe && (
-              <svg 
-                className={`w-4 h-4 ${isMe ? 'text-blue-100' : 'text-gray-500'}`} 
-                fill="currentColor" 
-                viewBox="0 0 20 20"
-              >
-                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
-              </svg>
-            )}
+            {getStatusIndicator()}
           </div>
         </div>
       </div>
