@@ -89,7 +89,8 @@ const signup = async (firstName,lastName,email,password,confirmPassword,terms) =
             lastSeen: Date.now(),
             avatar: "https://i.pravatar.cc/150?u=" + user.uid,
             fcmToken: null,
-            status: 'online'
+            status: 'online',
+            friends: []
         });
         
         await setDoc(doc(db,"chats",user.uid),{

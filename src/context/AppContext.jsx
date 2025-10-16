@@ -37,7 +37,7 @@ const AppContextProvider = (props) => {
     const [messagesId, setMessagesId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatUser, setChatUser] = useState(null);
-
+    const [friends, setFriends] = useState([]);
     const [presenceInterval, setPresenceInterval] = useState(null);
 
     
@@ -52,7 +52,8 @@ const AppContextProvider = (props) => {
             const userSnap = await getDoc(userRef);
             const userData = userSnap.data();
             setUserData(userData);
-            setCurrentUser({uid, ...userData})        
+            setCurrentUser({uid, ...userData})   
+            setFriends(userData.friends || []);     
             setLoading(false)
         } catch (error) {
             console.error("Error loading user data:", error);
@@ -172,7 +173,8 @@ useEffect(() => {
         messages, setMessages,
         messagesId, setMessagesId,
         chatUser, setChatUser,
-        presenceInterval, setPresenceInterval 
+        presenceInterval, setPresenceInterval,
+        friends, setFriends 
     }
 
     return (

@@ -27,6 +27,8 @@ export default function UserProfilePanel({onClose}) {
     try{
         const chatRefMe = doc(db,'chats',userData.id);
         const chatRefFriend = doc(db, "chats", friendId);
+        const userRefMe = doc(db, 'users', userData.id);
+        const userRefFriend = doc(db, 'users', friendId);
 
         const mySnap = await getDoc(chatRefMe);
         const myChats= mySnap.data()?.chatsData|| [];
@@ -54,6 +56,32 @@ export default function UserProfilePanel({onClose}) {
     if (chatObj.messageId) {
       await deleteDoc(doc(db, "messages", chatObj.messageId));
     }
+
+
+   // REMOVE FROM FRIENDS LIST
+        // Get my friends list
+        const myUserSnap = await getDoc(userRefMe);
+        const myFriends = myUserSnap.data()?.friends || [];
+        const friendObj = myFriends.find(f => f.id === friendId);
+
+        if (friendObj) {
+          await updateDoc(userRefMe, {
+            friends: arrayRemove(friendObj)
+          });
+        }
+
+        // Get their friends list
+        const friendUserSnap = await getDoc(userRefFriend);
+        const theirFriends = friendUserSnap.data()?.friends || [];
+        const myFriendObj = theirFriends.find(f => f.id === userData.id);
+
+        if (myFriendObj) {
+          await updateDoc(userRefFriend, {
+            friends: arrayRemove(myFriendObj)
+          });
+        }
+
+
      setChatUser(null);
     console.log("Friend removed successfully!");
     toast.success("Friend removed successfully!");
@@ -77,35 +105,45 @@ export default function UserProfilePanel({onClose}) {
           return;
         }
     
-        // Get the chat object to remove
+        // Get the chat object
         const chatToUpdate = myChats[chatObjIndex];
     
-        // Remove the old chat entry
+        // Mark as deleted for this user
+        const deletedFor = chatToUpdate.deletedFor || [];
+        
+        // Check if already deleted
+        if (deletedFor.includes(userData.id)) {
+          toast.info("Chat already archived");
+          return;
+        }
+        
+        deletedFor.push(userData.id);
+    
+        // Remove old entry and add back with deletedFor flag
         await updateDoc(chatRefMe, {
           chatsData: arrayRemove(chatToUpdate)
         });
     
-        // Add it back with cleared data
         await updateDoc(chatRefMe, {
           chatsData: arrayUnion({
             ...chatToUpdate,
             lastMessage: "",
             messageSeen: true,
             unreadCount: 0,
-            updatedAt: Date.now()
+            updatedAt: Date.now(),
+            deletedFor: deletedFor
           })
         });
     
         setChatUser(null);
-        toast.success("Chat cleared successfully!");
+        toast.success("Chat archived successfully!");
         onClose();
     
       } catch (error) {
         console.error('Delete chat error:', error);
-        toast.error('Failed to delete chat');
+        toast.error('Failed to archive chat');
       }
     };
-
     const formatLastSeen = (timestamp) => {
       if (!timestamp) return 'Offline';
       
