@@ -242,7 +242,7 @@ useEffect(() => {
         </button>
 
         <button
-          onClick={() => setShowProfile(!showProfile)}
+          onClick={() => navigate('/profile')}
           className="p-2.5 hover:bg-[#2a3942] rounded-lg transition-colors duration-200"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00a884] to-[#017561] flex items-center justify-center overflow-hidden hover:shadow-lg hover:shadow-[#00a884]/30 transition-all duration-200">

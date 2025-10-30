@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import doodle from '.././assets/doodle.png';
 
 const ChatBox = ({ onOpenProfile }) => {
-  const { userData, messagesId, chatUser, messages, setMessages, setChatData } = useContext(AppContext);
+  const { userData, messagesId, setMessagesId,setChatUser, chatUser, messages, setMessages, setChatData } = useContext(AppContext);
   const [message, setMessage] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -208,6 +208,16 @@ const ChatBox = ({ onOpenProfile }) => {
           rAvatar: chatUser.rAvatar
         });
       }
+
+       // 🔑 FIX: Update the context state with new messageId
+       setMessagesId(currentMessageId);
+      
+       // 🔑 FIX: Update chatUser with messageId
+       setChatUser(prev => ({
+         ...prev,
+         messageId: currentMessageId
+       }));
+     
 
       // Auto-restore chat if it was deleted
       const userChatsRef = doc(db, 'chats', userData.id);
