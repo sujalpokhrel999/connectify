@@ -80,8 +80,6 @@ export default function UserProfilePanel({onClose}) {
             friends: arrayRemove(myFriendObj)
           });
         }
-
-
      setChatUser(null);
     console.log("Friend removed successfully!");
     toast.success("Friend removed successfully!");

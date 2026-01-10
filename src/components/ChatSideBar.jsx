@@ -55,7 +55,6 @@ useEffect(() => {
   setLocalFriends(friends || []);
 }, [friends]);
 
-  console.log(friends);
 
   // ===== CHANGE 1: Filter friends by search term =====
   const filteredFriends = (friends || []).filter(friend =>
