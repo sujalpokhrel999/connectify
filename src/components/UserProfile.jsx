@@ -103,25 +103,26 @@ export default function UserProfilePanel({onClose}) {
           return;
         }
     
-        // Get the chat object
         const chatToUpdate = myChats[chatObjIndex];
-    
-        // Mark as deleted for this user
-        const deletedFor = chatToUpdate.deletedFor || [];
+        
+        // Use object format for deletedFor
+        const deletedFor = chatToUpdate.deletedFor || {};
         
         // Check if already deleted
-        if (deletedFor.includes(userData.id)) {
+        if (deletedFor[userData.id]) {
           toast.info("Chat already archived");
           return;
         }
         
-        deletedFor.push(userData.id);
+        // ⭐ SET DELETION TIMESTAMP HERE
+        deletedFor[userData.id] = Date.now();
     
-        // Remove old entry and add back with deletedFor flag
+        // Remove old entry
         await updateDoc(chatRefMe, {
           chatsData: arrayRemove(chatToUpdate)
         });
     
+        // Add back with deletion timestamp
         await updateDoc(chatRefMe, {
           chatsData: arrayUnion({
             ...chatToUpdate,
@@ -129,12 +130,12 @@ export default function UserProfilePanel({onClose}) {
             messageSeen: true,
             unreadCount: 0,
             updatedAt: Date.now(),
-            deletedFor: deletedFor
+            deletedFor: deletedFor // ⭐ Timestamp saved here
           })
         });
     
         setChatUser(null);
-        toast.success("Chat archived successfully!");
+        toast.success("Chat archived! User moved to archived section.");
         onClose();
     
       } catch (error) {
@@ -142,6 +143,7 @@ export default function UserProfilePanel({onClose}) {
         toast.error('Failed to archive chat');
       }
     };
+
     const formatLastSeen = (timestamp) => {
       if (!timestamp) return 'Offline';
       

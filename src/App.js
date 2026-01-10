@@ -32,7 +32,11 @@ function App() {
         <Routes>
           <Route path='/' element={<LoginPage />} />
           <Route path='/signup' element={<SignUp />} />
-          <Route path='/editProfile' element={<EditProfile />} />
+          <Route path='/editProfile' element={
+            <ProtectedRoute>
+          <EditProfile />
+            </ProtectedRoute>
+          } />
           <Route path='/chat' element={
             <ProtectedRoute>
               <Chat />

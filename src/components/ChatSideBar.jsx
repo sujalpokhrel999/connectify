@@ -62,42 +62,56 @@ useEffect(() => {
     friend.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Active chats
-  const activeChats = (chatData || [])
-    .filter((chat) => !chat.deletedFor?.includes(userData.id))
-    .map((chat) => {
-      const messagesArray = chat.messages || [];
-      const unseenCount = messagesArray.filter(
-        (msg) => msg.sid !== userData.id && !msg.seen
-      ).length;
-      return { ...chat, unseenCount };
-    })
-    .filter(
-      (chat) =>
-        chat.rName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (chat.lastMessage || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
-    );
+ // ⭐ ACTIVE CHATS - Only show chats that are NOT deleted
+const activeChats = (chatData || [])
+.filter((chat) => {
+  const deletionTime = chat.deletedFor?.[userData.id];
+  
+  // ⭐ KEY LOGIC: Only show if NOT deleted OR has new messages after deletion
+  if (!deletionTime) {
+    return true; // Never deleted, always show
+  }
+  
+  // If deleted, only show if there are NEW messages after deletion
+  return chat.updatedAt > deletionTime;
+})
+.map((chat) => {
+  const messagesArray = chat.messages || [];
+  const unseenCount = messagesArray.filter(
+    (msg) => msg.sid !== userData.id && !msg.seen
+  ).length;
+  return { ...chat, unseenCount };
+})
+.filter(
+  (chat) =>
+    chat.rName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (chat.lastMessage || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+);
 
-  // Archived chats
-  const archivedChats = (chatData || [])
-    .filter((chat) => chat.deletedFor?.includes(userData.id))
-    .map((chat) => {
-      const messagesArray = chat.messages || [];
-      const unseenCount = messagesArray.filter(
-        (msg) => msg.sid !== userData.id && !msg.seen
-      ).length;
-      return { ...chat, unseenCount };
-    })
-    .filter(
-      (chat) =>
-        chat.rName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (chat.lastMessage || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
-    );
-    
+// ⭐ ARCHIVED CHATS - Only show deleted chats with NO new messages
+const archivedChats = (chatData || [])
+.filter((chat) => {
+  const deletionTime = chat.deletedFor?.[userData.id];
+  
+  // ⭐ KEY LOGIC: Only show if deleted AND no new messages since deletion
+  return deletionTime && chat.updatedAt <= deletionTime;
+})
+.map((chat) => {
+  const messagesArray = chat.messages || [];
+  const unseenCount = messagesArray.filter(
+    (msg) => msg.sid !== userData.id && !msg.seen
+  ).length;
+  return { ...chat, unseenCount };
+})
+.filter(
+  (chat) =>
+    chat.rName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (chat.lastMessage || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+);
 
   const displayChats = showArchived ? archivedChats : activeChats;
 

@@ -25,14 +25,41 @@ const ChatBox = ({ onOpenProfile }) => {
 
   useEffect(() => {
     if (!messagesId) return;
-
+  
     const unSub = onSnapshot(doc(db, 'messages', messagesId), (res) => {
-      const newMessages = res.data()?.messages || [];
-      setMessages(newMessages);
+      const allMessages = res.data()?.messages || [];
+      
+      // ⭐ Handle both old array format and new object format
+      let deletionTime = null;
+      
+      if (chatUser?.deletedFor) {
+        // New format: object with timestamps
+        if (typeof chatUser.deletedFor === 'object' && !Array.isArray(chatUser.deletedFor)) {
+          deletionTime = chatUser.deletedFor[userData.id];
+        }
+        // Old format: array of user IDs (backwards compatibility)
+        else if (Array.isArray(chatUser.deletedFor) && chatUser.deletedFor.includes(userData.id)) {
+          deletionTime = 0; // Show no old messages
+        }
+      }
+      
+      if (deletionTime !== null && deletionTime !== undefined) {
+        // ⭐ Only show messages sent AFTER deletion timestamp
+        const filteredMessages = allMessages.filter(msg => {
+          const msgTime = msg.timestamp?.seconds 
+            ? msg.timestamp.seconds * 1000 
+            : msg.timestamp;
+          return msgTime > deletionTime;
+        });
+        setMessages(filteredMessages);
+      } else {
+        // Not deleted, show all messages
+        setMessages(allMessages);
+      }
     });
-
+  
     return () => unSub();
-  }, [messagesId, setMessages]);
+  }, [messagesId, setMessages, chatUser, userData.id]);
 
   // Update message status to "sent" after being added to Firestore
   useEffect(() => {
@@ -195,52 +222,43 @@ const ChatBox = ({ onOpenProfile }) => {
 
   const handleSendMessage = async () => {
     if (!message.trim() || !chatUser) return;
-
+  
     try {
-      // ===== CHANGE 2: If messageId doesn't exist, create a new chat first =====
       let currentMessageId = messagesId;
       
       if (!messagesId) {
-        // This is a message to a friend with no existing chat
-        console.log('Creating new chat with friend...');
         currentMessageId = await createNewChat(chatUser.rId, {
           rName: chatUser.rName,
           rAvatar: chatUser.rAvatar
         });
       }
-
-       // 🔑 FIX: Update the context state with new messageId
-       setMessagesId(currentMessageId);
-      
-       // 🔑 FIX: Update chatUser with messageId
-       setChatUser(prev => ({
-         ...prev,
-         messageId: currentMessageId
-       }));
-     
-
-      // Auto-restore chat if it was deleted
+  
+      setMessagesId(currentMessageId);
+      setChatUser(prev => ({
+        ...prev,
+        messageId: currentMessageId
+      }));
+  
+      // ⭐ UPDATE: Don't remove deletedFor timestamp - just update chat metadata
       const userChatsRef = doc(db, 'chats', userData.id);
       const userChatsSnapshot = await getDoc(userChatsRef);
       const userChatData = userChatsSnapshot.data();
       const chatIndex = userChatData.chatsData.findIndex((c) => c.messageId === currentMessageId);
-
+  
       if (chatIndex !== -1) {
         const chat = userChatData.chatsData[chatIndex];
-
-        // Remove user from deletedFor array to restore chat
-        const deletedFor = (chat.deletedFor || []).filter(id => id !== userData.id);
-
-        // Update chat with restored status
+  
+        // ⭐ KEEP deletedFor intact - don't modify it
+        // The chat will move to active because updatedAt will be newer than deletionTime
         userChatData.chatsData[chatIndex] = {
           ...chat,
-          deletedFor: deletedFor
+          // deletedFor stays unchanged!
         };
-
+  
         await updateDoc(userChatsRef, { chatsData: userChatData.chatsData });
       }
-
-      // Then send the message
+  
+      // Send the message (rest of code stays same)
       await updateDoc(doc(db, 'messages', currentMessageId), {
         messages: arrayUnion({
           sid: userData.id,
@@ -251,24 +269,24 @@ const ChatBox = ({ onOpenProfile }) => {
           seenAt: null
         }),
       });
-
+  
       // Update chatsData for sender and receiver
       const userIds = [chatUser?.rId, userData.id].filter(Boolean);
       await Promise.all(
         userIds.map(async (id) => {
           const userChatsRef = doc(db, 'chats', id);
           const userChatsSnapshot = await getDoc(userChatsRef);
-
+  
           if (!userChatsSnapshot.exists()) return;
-
+  
           const userChatData = userChatsSnapshot.data();
           const chatIndex = userChatData.chatsData.findIndex((c) => c.messageId === currentMessageId);
-
+  
           if (chatIndex === -1) return;
-
+  
           userChatData.chatsData[chatIndex].lastMessage = message.slice(0, 30);
-          userChatData.chatsData[chatIndex].updatedAt = Date.now();
-
+          userChatData.chatsData[chatIndex].updatedAt = Date.now(); // ⭐ This makes it move to active
+  
           if (userChatData.chatsData[chatIndex].rId === userData.id) {
             const currentUnread = userChatData.chatsData[chatIndex].unreadCount || 0;
             userChatData.chatsData[chatIndex].unreadCount = currentUnread + 1;
@@ -277,7 +295,8 @@ const ChatBox = ({ onOpenProfile }) => {
             userChatData.chatsData[chatIndex].unreadCount = 0;
             userChatData.chatsData[chatIndex].messageSeen = true;
           }
-
+  
+          // ⭐ DON'T modify deletedFor here
           await updateDoc(userChatsRef, { chatsData: userChatData.chatsData });
         })
       );
@@ -285,7 +304,7 @@ const ChatBox = ({ onOpenProfile }) => {
       toast.error(error.message);
       console.error("Send message error:", error);
     }
-
+  
     setMessage('');
   };
 
