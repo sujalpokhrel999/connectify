@@ -14,6 +14,9 @@ const Chat = () => {
   const [showProfile, setShowProfile] = useState(false);
   const lastNotifiedRef = useRef({});
 
+  // ── RESPONSIVE: controls which panel is visible on mobile ──
+  const [mobileView, setMobileView] = useState('sidebar');
+
 
   useEffect(() => {
     if (chatData && userData) {
@@ -55,21 +58,15 @@ const Chat = () => {
     const unsubscribe = onSnapshot(doc(db, 'chats', userData.id), (snapshot) => {
       const chatsData = snapshot.data()?.chatsData || [];
 
-      // Check each chat for new unread messages
       chatsData.forEach((chat) => {
-        // Skip if this is the currently active chat (ChatBox handles this one)
         if (chat.messageId === messagesId) return;
 
-        // Only show notification if message is unread
         if (chat.messageSeen === false && chat.lastMessage) {
-          // Create unique key to prevent duplicate notifications
           const notificationKey = `${chat.messageId}-${chat.updatedAt}`;
 
-          // Check if we already showed notification for this message
           if (lastNotifiedRef.current[chat.messageId] !== notificationKey) {
             lastNotifiedRef.current[chat.messageId] = notificationKey;
 
-            // Show browser notification
             if (Notification.permission === "granted") {
               new Notification(`New message from ${chat.rName}`, {
                 body: chat.lastMessage || "New message",
@@ -80,8 +77,6 @@ const Chat = () => {
             }
           }
         } else if (chat.messageSeen === true) {
-          // Reset notification tracking when message is read
-          // This allows future messages from this chat to trigger notifications
           delete lastNotifiedRef.current[chat.messageId];
         }
       });
@@ -103,14 +98,27 @@ const Chat = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0e11]">
-      {/* Sidebar */}
-      <div className="w-auto h-full flex-shrink-0 border-r border-[#2a3942]">
-        <Sidebar />
+
+      {/* Sidebar — always visible on desktop, hidden on mobile when chat is open */}
+      <div className={`
+        h-full flex-shrink-0 border-r border-[#2a3942]
+        w-full sm:w-auto
+        ${mobileView === 'sidebar' ? 'flex' : 'hidden'}
+        sm:flex
+      `}>
+        <Sidebar onChatOpen={() => setMobileView('chat')} />
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 h-full flex flex-col overflow-hidden">
-        <ChatBox onOpenProfile={() => setShowProfile(true)} />
+      {/* Chat area — always visible on desktop, hidden on mobile when sidebar is showing */}
+      <div className={`
+        flex-1 h-full flex flex-col overflow-hidden
+        ${mobileView === 'chat' ? 'flex' : 'hidden'}
+        sm:flex
+      `}>
+        <ChatBox
+          onOpenProfile={() => setShowProfile(true)}
+          onBack={() => setMobileView('sidebar')}
+        />
       </div>
 
       {/* User Profile Modal */}

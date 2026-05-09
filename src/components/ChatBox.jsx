@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useContext, useCallback } from 'react';
-import { Send, Smile, Paperclip, Phone, Video, MoreVertical, X } from 'lucide-react';
+import { Send, Smile, Paperclip, Phone, Video, MoreVertical, X, ArrowLeft } from 'lucide-react';
 import { AppContext } from '../context/AppContext.jsx';
 import { onSnapshot, doc, updateDoc, getDoc, arrayUnion, Timestamp, setDoc, collection } from 'firebase/firestore';
 import { db } from '.././config/firebase';
@@ -72,7 +72,7 @@ const MessageBubble = React.memo(({ msg, currentUserId }) => {
 
   return (
     <div className={`flex mb-3 ${isMe ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200 ${
+      <div className={`max-w-[75vw] sm:max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200 ${
         isMe ? 'bg-[#056162] text-white rounded-br-none hover:shadow-md' : 'bg-[#1f2937] text-white rounded-bl-none hover:shadow-md'
       }`}>
         <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
@@ -121,7 +121,7 @@ const EmojiPicker = ({ onSelect, onClose }) => {
   return (
     <div
       ref={pickerRef}
-      className="absolute bottom-16 left-0 w-72 bg-[#1f2c34] border border-[#2a3942] rounded-2xl shadow-2xl z-50 overflow-hidden"
+      className="absolute bottom-16 left-0 w-64 sm:w-72 bg-[#1f2c34] border border-[#2a3942] rounded-2xl shadow-2xl z-50 overflow-hidden"
     >
       {/* Category tabs */}
       <div className="flex overflow-x-auto border-b border-[#2a3942] scrollbar-none">
@@ -159,7 +159,7 @@ const EmojiPicker = ({ onSelect, onClose }) => {
 };
 
 // ── Main ChatBox ──────────────────────────────────────────────────────────────
-const ChatBox = ({ onOpenProfile }) => {
+const ChatBox = ({ onOpenProfile, onBack }) => {
   const {
     userData, messagesId, setMessagesId, setChatUser,
     chatUser, messages, setMessages, setChatData,
@@ -172,7 +172,7 @@ const ChatBox = ({ onOpenProfile }) => {
 
   const messagesEndRef  = useRef(null);
   const inputRef        = useRef(null);
-  const typingTimeoutRef = useRef(null); // for clearing our own typing status
+  const typingTimeoutRef = useRef(null);
 
   // ── Filter messages on deletion ───────────────────────────────────────────
   useEffect(() => {
@@ -205,7 +205,6 @@ const ChatBox = ({ onOpenProfile }) => {
         setMessages(allMessages);
       }
 
-      // ── Read peer typing flag from snapshot ──────────────────────────────
       const typingData = res.data()?.typing || {};
       const peerId = chatUser?.rId;
       setPeerIsTyping(!!typingData[peerId]);
@@ -252,7 +251,7 @@ const ChatBox = ({ onOpenProfile }) => {
     markAsRead();
   }, [messagesId, userData?.id]);
 
-  // ── Mark messages as seen by recipient (optimised: skip if nothing to do) ──
+  // ── Mark messages as seen ─────────────────────────────────────────────────
   useEffect(() => {
     const hasUnseenFromOther = messages.some(m => m.sid !== userData.id && !m.seen);
     if (!hasUnseenFromOther) return;
@@ -273,26 +272,26 @@ const ChatBox = ({ onOpenProfile }) => {
     markSeen();
   }, [messagesId, userData?.id, messages.length]);
 
-  // ── Scroll to bottom on new messages ─────────────────────────────────────
+  // ── Scroll to bottom ──────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Cleanup own typing status on unmount / chat change ───────────────────
+  // ── Cleanup typing on unmount / chat change ───────────────────────────────
   useEffect(() => {
     return () => {
       clearTypingStatus();
     };
   }, [messagesId]);
 
-  // ── Typing indicator: write to Firestore ─────────────────────────────────
+  // ── Typing indicator ──────────────────────────────────────────────────────
   const setTypingStatus = useCallback(async (isTyping) => {
     if (!messagesId || !userData?.id) return;
     try {
       await updateDoc(doc(db, 'messages', messagesId), {
         [`typing.${userData.id}`]: isTyping,
       });
-    } catch (e) { /* silently ignore — typing is non-critical */ }
+    } catch (e) { /* silently ignore */ }
   }, [messagesId, userData?.id]);
 
   const clearTypingStatus = useCallback(() => {
@@ -301,11 +300,7 @@ const ChatBox = ({ onOpenProfile }) => {
 
   const handleInputChange = useCallback((e) => {
     setMessage(e.target.value);
-
-    // Set typing = true immediately
     setTypingStatus(true);
-
-    // Debounce: clear after 2 s of inactivity
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       setTypingStatus(false);
@@ -316,13 +311,9 @@ const ChatBox = ({ onOpenProfile }) => {
   const handleEmojiSelect = useCallback((emoji) => {
     const input = inputRef.current;
     if (!input) { setMessage(prev => prev + emoji); return; }
-
-    // Insert at cursor position
     const start = input.selectionStart;
     const end   = input.selectionEnd;
     setMessage(prev => prev.slice(0, start) + emoji + prev.slice(end));
-
-    // Restore cursor after state update
     requestAnimationFrame(() => {
       input.selectionStart = input.selectionEnd = start + emoji.length;
       input.focus();
@@ -355,7 +346,6 @@ const ChatBox = ({ onOpenProfile }) => {
     const trimmed = message.trim();
     if (!trimmed || !chatUser || isSending) return;
 
-    // ✅ FIX: Clear input + block re-entry BEFORE any await
     setIsSending(true);
     setMessage('');
     clearTimeout(typingTimeoutRef.current);
@@ -372,7 +362,6 @@ const ChatBox = ({ onOpenProfile }) => {
         setChatUser(prev => ({ ...prev, messageId: currentMessageId }));
       }
 
-      // Write message
       await updateDoc(doc(db, 'messages', currentMessageId), {
         messages: arrayUnion({
           sid: userData.id,
@@ -384,7 +373,6 @@ const ChatBox = ({ onOpenProfile }) => {
         }),
       });
 
-      // Update chat metadata for both participants
       const userIds = [chatUser?.rId, userData.id].filter(Boolean);
       await Promise.all(userIds.map(async (id) => {
         const ref  = doc(db, 'chats', id);
@@ -410,7 +398,6 @@ const ChatBox = ({ onOpenProfile }) => {
     } catch (error) {
       toast.error(error.message);
       console.error('Send message error:', error);
-      // Restore message so user doesn't lose it
       setMessage(trimmed);
     } finally {
       setIsSending(false);
@@ -418,7 +405,7 @@ const ChatBox = ({ onOpenProfile }) => {
     }
   }, [message, chatUser, isSending, messagesId, userData, createNewChat, setMessagesId, setChatUser, setTypingStatus]);
 
-  // ── Key handler (replaces deprecated onKeyPress) ──────────────────────────
+  // ── Key handler ───────────────────────────────────────────────────────────
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -429,7 +416,7 @@ const ChatBox = ({ onOpenProfile }) => {
   // ─────────────────────────────────────────────────────────────────────────
   return chatUser ? (
     <div
-      className="flex flex-col h-screen bg-[#0a0e11]"
+      className="flex flex-col h-full bg-[#0a0e11]"
       style={{
         backgroundImage: `url(${doodle})`,
         backgroundRepeat: 'repeat',
@@ -440,23 +427,33 @@ const ChatBox = ({ onOpenProfile }) => {
       }}
     >
       {/* ── Header ── */}
-      <div className="h-16 bg-[#141616] flex items-center justify-between px-6 border border-[#2a2d2d]">
-        <div className="flex items-center space-x-4">
-          <div className="relative">
+      <div className="h-14 sm:h-16 bg-[#141616] flex items-center justify-between px-3 sm:px-6 border border-[#2a2d2d] flex-shrink-0">
+        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+          {/* ── RESPONSIVE: back arrow — visible on mobile only ── */}
+          <button
+            onClick={onBack}
+            className="sm:hidden p-2 hover:bg-[#2a3942] rounded-full transition-colors duration-200 flex-shrink-0"
+            aria-label="Back to chats"
+          >
+            <ArrowLeft className="w-5 h-5 text-[#aebac1]" />
+          </button>
+
+          <div className="relative flex-shrink-0">
             <img
               src={chatUser.userData?.avatar || chatUser.rAvatar || '/favicon.ico'}
               alt="chat user"
-              className="w-10 h-10 rounded-full object-cover shadow-sm"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shadow-sm"
             />
-            <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#202c33] transition-all duration-200 ${
+            <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-[#202c33] transition-all duration-200 ${
               chatUser.userData?.status === 'online' ? 'bg-[#00a884]' : 'bg-[#565d61]'
             }`} />
           </div>
-          <div>
-            <h3 className="font-medium text-white">
+
+          <div className="min-w-0">
+            <h3 className="font-medium text-white text-sm sm:text-base truncate">
               {chatUser.userData?.name || chatUser.rName || 'Unknown'}
             </h3>
-            <p className={`text-xs transition-colors duration-200 ${
+            <p className={`text-xs transition-colors duration-200 truncate ${
               chatUser.userData?.status === 'online' ? 'text-[#00a884]' : 'text-[#8696a0]'
             }`}>
               {chatUser.userData?.status === 'online'
@@ -468,25 +465,25 @@ const ChatBox = ({ onOpenProfile }) => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <button className="p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200">
-            <Phone className="w-5 h-5 text-[#aebac1]" />
+        <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+          <button className="p-2 sm:p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200">
+            <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-[#aebac1]" />
           </button>
-          <button className="p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200">
-            <Video className="w-5 h-5 text-[#aebac1]" />
+          <button className="p-2 sm:p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200">
+            <Video className="w-4 h-4 sm:w-5 sm:h-5 text-[#aebac1]" />
           </button>
           <button
-            className="p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200"
+            className="p-2 sm:p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200"
             onClick={onOpenProfile}
           >
-            <MoreVertical className="w-5 h-5 text-[#aebac1]" />
+            <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5 text-[#aebac1]" />
           </button>
         </div>
       </div>
 
       {/* ── Messages ── */}
       <div
-        className="flex-1 overflow-y-auto px-6 py-4 relative scrollbar scrollbar-thin scrollbar-thumb-[#2a3942] scrollbar-track-transparent border border-[#2a2d2d] rounded-lg"
+        className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 relative scrollbar scrollbar-thin scrollbar-thumb-[#2a3942] scrollbar-track-transparent border border-[#2a2d2d] rounded-lg"
         style={{ backgroundColor: '#141616eb' }}
       >
         <div className="space-y-3 relative z-10">
@@ -504,43 +501,39 @@ const ChatBox = ({ onOpenProfile }) => {
             ))
           )}
 
-          {/* Typing indicator */}
           {peerIsTyping && <TypingIndicator />}
-
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* ── Input Area ── */}
-      <div className="bg-[#141616] px-6 py-4 border-t border-[#2a2d2d]">
-        <div className="flex items-center space-x-3 relative">
+      <div className="bg-[#141616] px-2 sm:px-6 py-3 sm:py-4 border-t border-[#2a2d2d] flex-shrink-0">
+        <div className="flex items-center space-x-1 sm:space-x-3 relative">
 
           {/* Emoji toggle */}
           <button
             onClick={() => setShowEmojiPicker(prev => !prev)}
-            className={`p-2.5 rounded-full transition-colors duration-200 ${
+            className={`p-2 sm:p-2.5 rounded-full transition-colors duration-200 flex-shrink-0 ${
               showEmojiPicker ? 'bg-[#2a3942] text-[#00a884]' : 'hover:bg-[#2a3942] text-[#aebac1]'
             }`}
           >
             <Smile className="w-5 h-5" />
           </button>
 
-          {/* Emoji picker (positioned above input) */}
           {showEmojiPicker && (
             <EmojiPicker
               onSelect={(emoji) => {
                 handleEmojiSelect(emoji);
-                // Keep picker open so user can add more
               }}
               onClose={() => setShowEmojiPicker(false)}
             />
           )}
 
-          <button className="p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200 text-[#aebac1]">
+          <button className="p-2 sm:p-2.5 hover:bg-[#2a3942] rounded-full transition-colors duration-200 text-[#aebac1] flex-shrink-0">
             <Paperclip className="w-5 h-5" />
           </button>
 
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-w-0">
             <input
               ref={inputRef}
               type="text"
@@ -549,14 +542,14 @@ const ChatBox = ({ onOpenProfile }) => {
               onKeyDown={handleKeyDown}
               placeholder="Message"
               disabled={isSending}
-              className="w-full px-5 py-2.5 bg-[#242626] text-white placeholder:text-[#8696a0] rounded-full focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 transition-all duration-200 text-sm disabled:opacity-60"
+              className="w-full px-4 sm:px-5 py-2.5 bg-[#242626] text-white placeholder:text-[#8696a0] rounded-full focus:outline-none focus:ring-2 focus:ring-[#00a884]/50 transition-all duration-200 text-sm disabled:opacity-60"
             />
           </div>
 
           <button
             onClick={handleSendMessage}
             disabled={!message.trim() || isSending}
-            className={`p-2.5 rounded-full transition-all duration-200 ${
+            className={`p-2 sm:p-2.5 rounded-full transition-all duration-200 flex-shrink-0 ${
               message.trim() && !isSending
                 ? 'bg-[#00a884] text-white hover:bg-[#009a79] shadow-lg shadow-[#00a884]/30'
                 : 'text-[#565d61] cursor-not-allowed'
