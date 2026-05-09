@@ -39,6 +39,20 @@ const Signup = () => {
       .match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   };
 
+  // --- ADDED: password strength checker ---
+  const getPasswordStrength = (password) => {
+    if (!password) return null;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+    const score = [hasUpper, hasLower, hasNumber, hasSpecial, password.length >= 8].filter(Boolean).length;
+    if (score <= 2) return { label: "Weak", color: "#e74c3c" };
+    if (score <= 3) return { label: "Fair", color: "#f39c12" };
+    if (score === 4) return { label: "Good", color: "#2ecc71" };
+    return { label: "Strong", color: "#27ae60" };
+  };
+
   const handleSignUpSubmit = async (e) => {
     e.preventDefault();
 
@@ -52,6 +66,20 @@ const Signup = () => {
       return toast.error("First name must be at least 2 characters");
     }
 
+    // --- ADDED: Last name length validation (mirrors existing first name check) ---
+    if (signupData.lastName.length < 2) {
+      return toast.error("Last name must be at least 2 characters");
+    }
+
+    // --- ADDED: Name format validation (no numbers or special characters) ---
+    const nameRegex = /^[a-zA-Z\s'-]+$/;
+    if (!nameRegex.test(signupData.firstName)) {
+      return toast.error("First name must contain only letters");
+    }
+    if (!nameRegex.test(signupData.lastName)) {
+      return toast.error("Last name must contain only letters");
+    }
+
     // 3. Email Format Validation
     if (!validateEmail(signupData.email)) {
       return toast.error("Please enter a valid email address");
@@ -60,6 +88,16 @@ const Signup = () => {
     // 4. Password Strength Validation
     if (signupData.password.length < 6) {
       return toast.error("Password must be at least 6 characters long");
+    }
+
+    // --- ADDED: Password cannot contain spaces ---
+    if (/\s/.test(signupData.password)) {
+      return toast.error("Password must not contain spaces");
+    }
+
+    // --- ADDED: Password cannot be the same as the email ---
+    if (signupData.password.toLowerCase() === signupData.email.toLowerCase()) {
+      return toast.error("Password cannot be the same as your email");
     }
 
     // 5. Password Matching
@@ -131,6 +169,9 @@ const Signup = () => {
     }
   };
 
+  // --- ADDED: derived password strength for display ---
+  const passwordStrength = getPasswordStrength(signupData.password);
+
   return (
     <div className="login">
       <div className="upperCircle"><div className="circle3"><div className="circle2"><div className="circle1"></div></div></div></div>
@@ -148,6 +189,7 @@ const Signup = () => {
                     required
                     value={signupData.firstName}
                     onChange={(e) => setSignupData({ ...signupData, firstName: e.target.value })}
+                    maxLength={50}
                   />
                 </div>
                 <div className="input-group">
@@ -157,6 +199,7 @@ const Signup = () => {
                     required
                     value={signupData.lastName}
                     onChange={(e) => setSignupData({ ...signupData, lastName: e.target.value })}
+                    maxLength={50}
                   />
                 </div>
               </div>
@@ -169,6 +212,7 @@ const Signup = () => {
                   required
                   value={signupData.email}
                   onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
+                  maxLength={254}
                 />
               </div>
 
@@ -182,6 +226,7 @@ const Signup = () => {
                   value={signupData.password}
                   onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                   className="pr-10"
+                  maxLength={128}
                 />
                 {signupData.password && (
                   <span className="eye-icon" onClick={() => setShowPassword(!showPassword)}>
@@ -189,6 +234,22 @@ const Signup = () => {
                   </span>
                 )}
               </div>
+
+              {/* ADDED: Password strength indicator */}
+              {passwordStrength && (
+                <div style={{ marginTop: "-8px", marginBottom: "8px", fontSize: "12px", color: passwordStrength.color, fontWeight: 500 }}>
+                  Password strength: {passwordStrength.label}
+                  <div style={{ height: "4px", borderRadius: "2px", background: "#eee", marginTop: "4px" }}>
+                    <div style={{
+                      height: "100%",
+                      borderRadius: "2px",
+                      background: passwordStrength.color,
+                      width: passwordStrength.label === "Weak" ? "25%" : passwordStrength.label === "Fair" ? "50%" : passwordStrength.label === "Good" ? "75%" : "100%",
+                      transition: "width 0.3s ease"
+                    }} />
+                  </div>
+                </div>
+              )}
 
               <div className="input-group relative">
                 <img src={passwordImg} className="email" alt="password" />
@@ -199,6 +260,7 @@ const Signup = () => {
                   value={signupData.confirmPassword}
                   onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
                   className="pr-10"
+                  maxLength={128}
                 />
                 {signupData.confirmPassword && (
                   <span className="eye-icon" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
@@ -206,6 +268,13 @@ const Signup = () => {
                   </span>
                 )}
               </div>
+
+              {/* ADDED: Inline confirm password mismatch hint */}
+              {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
+                <p style={{ fontSize: "12px", color: "#e74c3c", marginTop: "-8px", marginBottom: "8px" }}>
+                  Passwords do not match
+                </p>
+              )}
 
               <div className="checkbox-group">
                 <label className="checkbox-label">
@@ -257,6 +326,11 @@ const Signup = () => {
               value={otpInput}
               onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))} // Only allows numbers
               className="otp-field"
+              onPaste={(e) => {
+                e.preventDefault();
+                const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                setOtpInput(pasted);
+              }}
             />
             
             <button className="verify-btn" onClick={handleVerifyAndSignup} disabled={loading}>

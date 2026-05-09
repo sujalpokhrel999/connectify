@@ -5,7 +5,6 @@ import {
   Archive,
   Inbox,
   MessageSquareMore,
-  Bell,
   Users,
   Settings,
   User,
@@ -197,7 +196,7 @@ const archivedChats = (chatData || [])
 >
   <MessageSquareMore className="w-5 h-5" />
 </button>
-
+{/* 
 <button
   className={`p-2.5 rounded-lg transition-colors duration-200 ${
     selectedTab === "notifications"
@@ -207,7 +206,7 @@ const archivedChats = (chatData || [])
   onClick={() => setSelectedTab("notifications")}
 >
   <Bell className="w-5 h-5" />
-</button>
+</button> */}
 
 
 <button
@@ -250,9 +249,9 @@ const archivedChats = (chatData || [])
 
         <div className="flex-1" />
 
-        <button className="p-2.5 hover:bg-[#2a3942] rounded-lg transition-colors duration-200"  onClick={() => setSelectedTab("setting")}>
+        {/* <button className="p-2.5 hover:bg-[#2a3942] rounded-lg transition-colors duration-200"  onClick={() => setSelectedTab("setting")}>
           <Settings className="w-5 h-5 text-[#aebac1]" />
-        </button>
+        </button> */}
 
         <button
           onClick={() => navigate('/profile')}
